@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Regression with TensorFlow.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .chart-container {
+            flex: 1;
+            min-width: 400px;
+        }
+        .controls {
+            flex: 1;
+            min-width: 300px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Linear Regression Trainer</h1>
+    
+    <div class="container">
+        <div class="chart-container">
+            <canvas id="plotCanvas" width="400" height="400"></canvas>
+        </div>
+        
+        <div class="controls">
+            <h3>Training Progress</h3>
+            <div id="weights-display">
+                <p>Current weights:</p>
+                <p>w0 (bias): <span id="w0">0.00</span></p>
+                <p>w1 (slope): <span id="w1">0.00</span></p>
+            </div>
+            <div id="epoch-display">
+                <p>Epoch: <span id="current-epoch">0</span></p>
+                <p>Loss: <span id="current-loss">--</span></p>
+            </div>
+            <button id="start-training">Start Training</button>
+            <button id="reset">Reset</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

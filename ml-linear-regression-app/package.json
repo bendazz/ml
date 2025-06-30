@@ -1,0 +1,14 @@
+{
+  "name": "ml-linear-regression-app",
+  "version": "1.0.0",
+  "description": "A simple linear regression application using TensorFlow.js",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "live-server src"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^3.0.0"
+  },
+  "author": "",
+  "license": "ISC"
+}

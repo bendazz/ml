@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Regression with TensorFlow.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .chart-container {
+            flex: 1;
+            min-width: 400px;
+        }
+        .controls {
+            flex: 1;
+            min-width: 300px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Linear Regression Trainer</h1>
+    
+    <div class="container">
+        <div class="chart-container">
+            <canvas id="plotCanvas" width="400" height="400"></canvas>
+            <h4 style="text-align: center;">Data & Line Plot</h4>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="networkCanvas" width="400" height="300"></canvas>
+            <h4 style="text-align: center;">Neural Network</h4>
+        </div>
+        
+        <div class="controls">
+            <h3>Training Progress</h3>
+            <div id="weights-display">
+                <p>Current weights:</p>
+                <p>w0 (bias): <span id="w0">0.00</span></p>
+                <p>w1 (slope): <span id="w1">0.00</span></p>
+            </div>
+            <div id="equation-display">
+                <p><strong>Current equation:</strong></p>
+                <p id="equation">y = 0.000 + 0.000x</p>
+            </div>
+            <div id="epoch-display">
+                <p>Epoch: <span id="current-epoch">0</span></p>
+                <p>Loss: <span id="current-loss">--</span></p>
+            </div>
+            <div id="learning-rate-control">
+                <p><strong>Learning Rate:</strong></p>
+                <input type="range" id="learning-rate-slider" min="0.001" max="0.1" step="0.001" value="0.01">
+                <span id="learning-rate-value">0.01</span>
+            </div>
+            <button id="start-training">Start Training</button>
+            <button id="reset">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let dataPoints = [];
+        let model = null;
+        let canvas, ctx;
+        let networkCanvas, networkCtx;
+        let currentWeights = { w0: 0, w1: 0 };
+        let isTraining = false;
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("App loaded, TensorFlow.js version:", tf.version.tfjs);
+            
+            // Get canvas and context
+            canvas = document.getElementById('plotCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Get network canvas and context
+            networkCanvas = document.getElementById('networkCanvas');
+            networkCtx = networkCanvas.getContext('2d');
+            
+            // Generate initial data points
+            generateDataPoints();
+            
+            // Initialize random weights
+            initializeWeights();
+            
+            // Draw initial plot
+            drawPlot();
+            drawNetwork();
+            
+            // Set up button event listeners
+            document.getElementById('start-training').addEventListener('click', startTraining);
+            document.getElementById('reset').addEventListener('click', reset);
+            
+            // Set up learning rate slider
+            const learningRateSlider = document.getElementById('learning-rate-slider');
+            const learningRateValue = document.getElementById('learning-rate-value');
+            
+            learningRateSlider.addEventListener('input', function() {
+                learningRateValue.textContent = this.value;
+                // Reset model when learning rate changes
+                if (model) {
+                    model.dispose();
+                    model = null;
+                }
+            });
+        });
+
+        function generateDataPoints() {
+            dataPoints = [];
+            
+            // Generate random "true" line parameters
+            const trueSlope = (Math.random() - 0.5) * 6; // slope between -3 and 3
+            const trueIntercept = (Math.random() - 0.5) * 10; // intercept between -5 and 5
+            const noiseLevel = Math.random() * 3 + 1; // noise between 1 and 4
+            
+            console.log(`True line: y = ${trueIntercept.toFixed(2)} + ${trueSlope.toFixed(2)}x, noise: ${noiseLevel.toFixed(2)}`);
+            
+            // Generate 10 random points following this line with noise
+            for (let i = 0; i < 10; i++) {
+                const x = Math.random() * 8 + 1; // x between 1 and 9
+                const y = trueIntercept + trueSlope * x + (Math.random() - 0.5) * noiseLevel * 2;
+                dataPoints.push({ x: x, y: y });
+            }
+            
+            console.log("Generated data points:", dataPoints);
+        }
+
+        function initializeWeights() {
+            // Random initial weights
+            currentWeights.w0 = (Math.random() - 0.5) * 4; // bias between -2 and 2
+            currentWeights.w1 = (Math.random() - 0.5) * 4; // slope between -2 and 2
+            updateWeightDisplay();
+        }
+
+        function drawNetwork() {
+            // Clear network canvas
+            networkCtx.clearRect(0, 0, networkCanvas.width, networkCanvas.height);
+            
+            // Network layout
+            const inputX = 80;
+            const outputX = 320;
+            const centerY = networkCanvas.height / 2;
+            const nodeRadius = 25;
+            
+            // Draw input node
+            networkCtx.fillStyle = '#e3f2fd';
+            networkCtx.strokeStyle = '#1976d2';
+            networkCtx.lineWidth = 2;
+            networkCtx.beginPath();
+            networkCtx.arc(inputX, centerY, nodeRadius, 0, 2 * Math.PI);
+            networkCtx.fill();
+            networkCtx.stroke();
+            
+            // Input label
+            networkCtx.fillStyle = 'black';
+            networkCtx.font = '14px Arial';
+            networkCtx.textAlign = 'center';
+            networkCtx.fillText('x', inputX, centerY + 5);
+            networkCtx.fillText('Input', inputX, centerY - 40);
+            
+            // Draw output node
+            networkCtx.fillStyle = '#fff3e0';
+            networkCtx.strokeStyle = '#f57c00';
+            networkCtx.beginPath();
+            networkCtx.arc(outputX, centerY, nodeRadius, 0, 2 * Math.PI);
+            networkCtx.fill();
+            networkCtx.stroke();
+            
+            // Output label
+            networkCtx.fillStyle = 'black';
+            networkCtx.fillText('y', outputX, centerY + 5);
+            networkCtx.fillText('Output', outputX, centerY - 40);
+            
+            // Draw weight connection (w1)
+            networkCtx.strokeStyle = '#666';
+            networkCtx.lineWidth = 3;
+            networkCtx.beginPath();
+            networkCtx.moveTo(inputX + nodeRadius, centerY);
+            networkCtx.lineTo(outputX - nodeRadius, centerY);
+            networkCtx.stroke();
+            
+            // Weight w1 label
+            const midX = (inputX + outputX) / 2;
+            networkCtx.fillStyle = 'white';
+            networkCtx.fillRect(midX - 25, centerY - 15, 50, 20);
+            networkCtx.strokeStyle = '#666';
+            networkCtx.lineWidth = 1;
+            networkCtx.strokeRect(midX - 25, centerY - 15, 50, 20);
+            networkCtx.fillStyle = 'black';
+            networkCtx.font = '12px Arial';
+            networkCtx.textAlign = 'center';
+            networkCtx.fillText(`w1: ${currentWeights.w1.toFixed(3)}`, midX, centerY - 2);
+            
+            // Draw bias connection (w0)
+            const biasX = inputX;
+            const biasY = centerY - 80;
+            
+            // Bias node
+            networkCtx.fillStyle = '#f3e5f5';
+            networkCtx.strokeStyle = '#7b1fa2';
+            networkCtx.lineWidth = 2;
+            networkCtx.beginPath();
+            networkCtx.arc(biasX, biasY, nodeRadius, 0, 2 * Math.PI);
+            networkCtx.fill();
+            networkCtx.stroke();
+            
+            // Bias label
+            networkCtx.fillStyle = 'black';
+            networkCtx.font = '14px Arial';
+            networkCtx.fillText('1', biasX, biasY + 5);
+            networkCtx.fillText('Bias', biasX, biasY - 40);
+            
+            // Bias connection line
+            networkCtx.strokeStyle = '#666';
+            networkCtx.lineWidth = 3;
+            networkCtx.beginPath();
+            networkCtx.moveTo(biasX + nodeRadius * 0.7, biasY + nodeRadius * 0.7);
+            networkCtx.lineTo(outputX - nodeRadius * 0.7, centerY - nodeRadius * 0.7);
+            networkCtx.stroke();
+            
+            // Weight w0 label
+            const biasMidX = (biasX + outputX) / 2 + 20;
+            const biasMidY = (biasY + centerY) / 2;
+            networkCtx.fillStyle = 'white';
+            networkCtx.fillRect(biasMidX - 25, biasMidY - 10, 50, 20);
+            networkCtx.strokeStyle = '#666';
+            networkCtx.lineWidth = 1;
+            networkCtx.strokeRect(biasMidX - 25, biasMidY - 10, 50, 20);
+            networkCtx.fillStyle = 'black';
+            networkCtx.font = '12px Arial';
+            networkCtx.fillText(`w0: ${currentWeights.w0.toFixed(3)}`, biasMidX, biasMidY + 3);
+            
+            // Draw equation
+            networkCtx.fillStyle = 'black';
+            networkCtx.font = '16px Arial';
+            networkCtx.textAlign = 'center';
+            networkCtx.fillText('y = w0 + w1 × x', networkCanvas.width / 2, networkCanvas.height - 20);
+        }
+
+        function updateWeightDisplay() {
+            document.getElementById('w0').textContent = currentWeights.w0.toFixed(3);
+            document.getElementById('w1').textContent = currentWeights.w1.toFixed(3);
+            
+            // Update equation display
+            const w0Sign = currentWeights.w0 >= 0 ? '+' : '';
+            const equation = `y = ${currentWeights.w0.toFixed(3)} ${w0Sign} ${currentWeights.w1.toFixed(3)}x`;
+            document.getElementById('equation').textContent = equation;
+            
+            // Redraw network with new weights
+            drawNetwork();
+        }
+
+        function drawPlot() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Set up coordinate system (canvas is 400x400)
+            const padding = 40;
+            const plotWidth = canvas.width - 2 * padding;
+            const plotHeight = canvas.height - 2 * padding;
+            
+            // Find data range for better scaling
+            const allY = dataPoints.map(p => p.y);
+            const minY = Math.min(...allY, -10);
+            const maxY = Math.max(...allY, 10);
+            const yRange = maxY - minY;
+            const yCenter = (maxY + minY) / 2;
+            
+            // Draw axes
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            
+            // Vertical axis
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            
+            // Horizontal axis
+            ctx.moveTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            
+            // Zero line (if y=0 is in range)
+            if (minY <= 0 && maxY >= 0) {
+                const zeroY = canvas.height - padding - ((0 - minY) / yRange) * plotHeight;
+                ctx.moveTo(padding, zeroY);
+                ctx.lineTo(canvas.width - padding, zeroY);
+            }
+            
+            ctx.stroke();
+            
+            // Draw data points
+            ctx.fillStyle = 'blue';
+            dataPoints.forEach(point => {
+                const x = padding + (point.x / 10) * plotWidth;
+                const y = canvas.height - padding - ((point.y - minY) / yRange) * plotHeight;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+            
+            // Draw current line: y = w0 + w1*x
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            const x1 = 0;
+            const y1 = currentWeights.w0 + currentWeights.w1 * x1;
+            const x2 = 10;
+            const y2 = currentWeights.w0 + currentWeights.w1 * x2;
+            
+            const canvasX1 = padding + (x1 / 10) * plotWidth;
+            const canvasY1 = canvas.height - padding - ((y1 - minY) / yRange) * plotHeight;
+            const canvasX2 = padding + (x2 / 10) * plotWidth;
+            const canvasY2 = canvas.height - padding - ((y2 - minY) / yRange) * plotHeight;
+            
+            ctx.moveTo(canvasX1, canvasY1);
+            ctx.lineTo(canvasX2, canvasY2);
+            ctx.stroke();
+        }
+
+        function reset() {
+            generateDataPoints();
+            initializeWeights();
+            drawPlot();
+            drawNetwork();
+            document.getElementById('current-epoch').textContent = '0';
+            document.getElementById('current-loss').textContent = '--';
+        }
+
+        function createModel() {
+            // Get current learning rate from slider
+            const learningRate = parseFloat(document.getElementById('learning-rate-slider').value);
+            
+            // Create a simple sequential model
+            model = tf.sequential({
+                layers: [
+                    tf.layers.dense({
+                        inputShape: [1],  // One input (x value)
+                        units: 1,         // One output (y value)
+                        useBias: true     // Include bias term (w0)
+                    })
+                ]
+            });
+
+            // Compile the model with selected learning rate
+            model.compile({
+                optimizer: tf.train.sgd(learningRate),
+                loss: 'meanSquaredError'
+            });
+
+            console.log(`Model created with learning rate: ${learningRate}`);
+            return model;
+        }
+
+        async function startTraining() {
+            if (isTraining) return;
+            
+            console.log("Starting training...");
+            isTraining = true;
+            document.getElementById('start-training').textContent = 'Training...';
+            
+            // Create model if it doesn't exist
+            if (!model) {
+                createModel();
+            }
+
+            // Prepare training data
+            const xs = tf.tensor2d(dataPoints.map(p => [p.x]));
+            const ys = tf.tensor2d(dataPoints.map(p => [p.y]));
+
+            // Training configuration
+            const epochs = 200;
+            let currentEpoch = 0;
+
+            // Train the model
+            await model.fit(xs, ys, {
+                epochs: epochs,
+                callbacks: {
+                    onEpochEnd: async (epoch, logs) => {
+                        currentEpoch = epoch + 1;
+                        
+                        // Update UI every 10 epochs
+                        if (currentEpoch % 10 === 0 || currentEpoch === 1) {
+                            // Get current weights from the model
+                            const weights = model.getWeights();
+                            const w1Data = await weights[0].data(); // Weight matrix
+                            const w0Data = await weights[1].data(); // Bias
+                            
+                            currentWeights.w1 = w1Data[0];
+                            currentWeights.w0 = w0Data[0];
+                            
+                            // Update display
+                            updateWeightDisplay();
+                            document.getElementById('current-epoch').textContent = currentEpoch;
+                            document.getElementById('current-loss').textContent = logs.loss.toFixed(6);
+                            
+                            // Redraw plot with new line
+                            drawPlot();
+                            
+                            // Small delay to see the animation
+                            await new Promise(resolve => setTimeout(resolve, 50));
+                        }
+                    }
+                }
+            });
+
+            // Clean up tensors
+            xs.dispose();
+            ys.dispose();
+
+            isTraining = false;
+            document.getElementById('start-training').textContent = 'Start Training';
+            console.log("Training completed!");
+        }
+    </script>
+</body>
+</html>
