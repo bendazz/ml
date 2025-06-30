@@ -146,6 +146,88 @@
             updateWeightDisplay();
         }
 
+        function updateWeightDisplay() {
+            document.getElementById('w0').textContent = currentWeights.w0.toFixed(3);
+            document.getElementById('w1').textContent = currentWeights.w1.toFixed(3);
+            
+            // Update equation display
+            const w0Sign = currentWeights.w0 >= 0 ? '+' : '';
+            const equation = `y = ${currentWeights.w0.toFixed(3)} ${w0Sign} ${currentWeights.w1.toFixed(3)}x`;
+            document.getElementById('equation').textContent = equation;
+            
+            // Redraw network with new weights
+            drawNetwork();
+        }
+
+        function drawPlot() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Set up coordinate system (canvas is 400x400)
+            const padding = 40;
+            const plotWidth = canvas.width - 2 * padding;
+            const plotHeight = canvas.height - 2 * padding;
+            
+            // Find data range for better scaling
+            const allY = dataPoints.map(p => p.y);
+            const minY = Math.min(...allY, -10);
+            const maxY = Math.max(...allY, 10);
+            const yRange = maxY - minY;
+            const yCenter = (maxY + minY) / 2;
+            
+            // Draw axes
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            
+            // Vertical axis
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            
+            // Horizontal axis
+            ctx.moveTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            
+            // Zero line (if y=0 is in range)
+            if (minY <= 0 && maxY >= 0) {
+                const zeroY = canvas.height - padding - ((0 - minY) / yRange) * plotHeight;
+                ctx.moveTo(padding, zeroY);
+                ctx.lineTo(canvas.width - padding, zeroY);
+            }
+            
+            ctx.stroke();
+            
+            // Draw data points
+            ctx.fillStyle = 'blue';
+            dataPoints.forEach(point => {
+                const x = padding + (point.x / 10) * plotWidth;
+                const y = canvas.height - padding - ((point.y - minY) / yRange) * plotHeight;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+            
+            // Draw current line: y = w0 + w1*x
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            const x1 = 0;
+            const y1 = currentWeights.w0 + currentWeights.w1 * x1;
+            const x2 = 10;
+            const y2 = currentWeights.w0 + currentWeights.w1 * x2;
+            
+            const canvasX1 = padding + (x1 / 10) * plotWidth;
+            const canvasY1 = canvas.height - padding - ((y1 - minY) / yRange) * plotHeight;
+            const canvasX2 = padding + (x2 / 10) * plotWidth;
+            const canvasY2 = canvas.height - padding - ((y2 - minY) / yRange) * plotHeight;
+            
+            ctx.moveTo(canvasX1, canvasY1);
+            ctx.lineTo(canvasX2, canvasY2);
+            ctx.stroke();
+        }
+
         function drawNetwork() {
             // Clear network canvas
             networkCtx.clearRect(0, 0, networkCanvas.width, networkCanvas.height);
@@ -251,97 +333,6 @@
             networkCtx.fillText('y = w0 + w1 × x', networkCanvas.width / 2, networkCanvas.height - 20);
         }
 
-        function updateWeightDisplay() {
-            document.getElementById('w0').textContent = currentWeights.w0.toFixed(3);
-            document.getElementById('w1').textContent = currentWeights.w1.toFixed(3);
-            
-            // Update equation display
-            const w0Sign = currentWeights.w0 >= 0 ? '+' : '';
-            const equation = `y = ${currentWeights.w0.toFixed(3)} ${w0Sign} ${currentWeights.w1.toFixed(3)}x`;
-            document.getElementById('equation').textContent = equation;
-            
-            // Redraw network with new weights
-            drawNetwork();
-        }
-
-        function drawPlot() {
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Set up coordinate system (canvas is 400x400)
-            const padding = 40;
-            const plotWidth = canvas.width - 2 * padding;
-            const plotHeight = canvas.height - 2 * padding;
-            
-            // Find data range for better scaling
-            const allY = dataPoints.map(p => p.y);
-            const minY = Math.min(...allY, -10);
-            const maxY = Math.max(...allY, 10);
-            const yRange = maxY - minY;
-            const yCenter = (maxY + minY) / 2;
-            
-            // Draw axes
-            ctx.strokeStyle = '#ccc';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            
-            // Vertical axis
-            ctx.moveTo(padding, padding);
-            ctx.lineTo(padding, canvas.height - padding);
-            
-            // Horizontal axis
-            ctx.moveTo(padding, canvas.height - padding);
-            ctx.lineTo(canvas.width - padding, canvas.height - padding);
-            
-            // Zero line (if y=0 is in range)
-            if (minY <= 0 && maxY >= 0) {
-                const zeroY = canvas.height - padding - ((0 - minY) / yRange) * plotHeight;
-                ctx.moveTo(padding, zeroY);
-                ctx.lineTo(canvas.width - padding, zeroY);
-            }
-            
-            ctx.stroke();
-            
-            // Draw data points
-            ctx.fillStyle = 'blue';
-            dataPoints.forEach(point => {
-                const x = padding + (point.x / 10) * plotWidth;
-                const y = canvas.height - padding - ((point.y - minY) / yRange) * plotHeight;
-                
-                ctx.beginPath();
-                ctx.arc(x, y, 5, 0, 2 * Math.PI);
-                ctx.fill();
-            });
-            
-            // Draw current line: y = w0 + w1*x
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            
-            const x1 = 0;
-            const y1 = currentWeights.w0 + currentWeights.w1 * x1;
-            const x2 = 10;
-            const y2 = currentWeights.w0 + currentWeights.w1 * x2;
-            
-            const canvasX1 = padding + (x1 / 10) * plotWidth;
-            const canvasY1 = canvas.height - padding - ((y1 - minY) / yRange) * plotHeight;
-            const canvasX2 = padding + (x2 / 10) * plotWidth;
-            const canvasY2 = canvas.height - padding - ((y2 - minY) / yRange) * plotHeight;
-            
-            ctx.moveTo(canvasX1, canvasY1);
-            ctx.lineTo(canvasX2, canvasY2);
-            ctx.stroke();
-        }
-
-        function reset() {
-            generateDataPoints();
-            initializeWeights();
-            drawPlot();
-            drawNetwork();
-            document.getElementById('current-epoch').textContent = '0';
-            document.getElementById('current-loss').textContent = '--';
-        }
-
         function createModel() {
             // Get current learning rate from slider
             const learningRate = parseFloat(document.getElementById('learning-rate-slider').value);
@@ -426,6 +417,15 @@
             isTraining = false;
             document.getElementById('start-training').textContent = 'Start Training';
             console.log("Training completed!");
+        }
+
+        function reset() {
+            generateDataPoints();
+            initializeWeights();
+            drawPlot();
+            drawNetwork();
+            document.getElementById('current-epoch').textContent = '0';
+            document.getElementById('current-loss').textContent = '--';
         }
     </script>
 </body>
